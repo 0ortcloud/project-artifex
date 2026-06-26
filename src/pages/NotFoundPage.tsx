@@ -6,14 +6,14 @@ export const NotFoundPage = () => {
     <div className="flex h-full flex-col items-center justify-center gap-4">
       <div className="text-8xl font-bold">404</div>
 
-      <h1 className="text-2xl font-semibold">페이지를 찾을 수 없습니다</h1>
+      <h1 className="text-2xl font-semibold">ページが見つかりません</h1>
 
       <p className="text-muted-foreground">
-        요청한 페이지가 존재하지 않거나 이동되었습니다.
+        お探しのページは存在しないか、移動した可能性があります。
       </p>
 
       <Button asChild>
-        <Link to="/">홈으로 이동</Link>
+        <Link to="/">ホームに移動</Link>
       </Button>
     </div>
   );

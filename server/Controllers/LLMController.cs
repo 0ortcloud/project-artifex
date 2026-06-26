@@ -3,8 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 namespace Artifex.Controllers
 {
     [ApiController]
-    [Route("api/model")]
-    public class ModelController : ControllerBase
+    [Route("api/llm")]
+    public class LLMController : ControllerBase
     {
         [HttpGet]
         public IActionResult GetAll()

@@ -1,6 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
 using Artifex.Services;
+using Artifex.Request;
+using Artifex.Models;
+using System.Text.Json;
+using System.Text.Encodings.Web;
 
 namespace Artifex.Controllers
 {
@@ -10,10 +13,12 @@ namespace Artifex.Controllers
     {
         private readonly ILogger<ChatController> _logger;
         private readonly ChatService _service;
-        public ChatController(ILogger<ChatController> logger, ChatService service)
+        private readonly LLMService _llmService;
+        public ChatController(ILogger<ChatController> logger, ChatService service, LLMService llmService)
         {
             _logger = logger;
             _service = service;
+            _llmService = llmService;
         }
 
         [HttpGet("session/list")]
@@ -33,17 +38,24 @@ namespace Artifex.Controllers
         }
 
         [HttpPatch("session/{id}")]
-        public IActionResult PatchOneSessionTitle(int id, string title)
+        public IActionResult PatchOneSessionTitle(int id, [FromBody] PatchSessionTitleRequest request)
         {
-            if (_service.EditMyOneChatSessionTitle(id, title) == 1)
+            var title = request.Title;
+            if (title == null)
+            {
+                _logger.LogError($"チャットセッションのタイトルが見つかりません。");
+                return Ok(false);
+            }
+            var response = _service.EditMyOneChatSessionTitle(id, title);
+            if (response == 1)
             {
                 _logger.LogInformation($"（ID：{id}）チャットセッションのタイトル変更成功。");
-                return Ok("変更成功");
+                return Ok(true);
             }
             else
             {
                 _logger.LogError($"（ID：{id}）チャットセッションのタイトル変更失敗。");
-                return Ok("変更失敗");
+                return Ok(false);
             }
         }
 
@@ -53,52 +65,53 @@ namespace Artifex.Controllers
             if (_service.RemoveMyOneChatSession(id) == 1)
             {
                 _logger.LogInformation($"（ID：{id}）チャットセッション削除成功。");
-                return Ok("変更成功");
+                return Ok(true);
             }
             else
             {
                 _logger.LogError($"（ID：{id}）チャットセッション削除失敗。");
-                return Ok("変更失敗");
-            }
-        }
-
-        [HttpPost("session")]
-        public IActionResult InsertOneSession(string title)
-        {
-            if (_service.InsertMyOneChatSession(title) == 1)
-            {
-                return Ok("追加成功");
-            }
-            else
-            {
-                return Ok("追加失敗");
+                return Ok(false);
             }
         }
 
         [HttpPost]
-        public IActionResult InsertOneChat(int sessionId, string role, string content, int score, string toolName)
+        public async Task<IActionResult> InsertOneChat([FromBody] InsertOneChatRequest request)
         {
-            if (sessionId == -1)
+            var SessionId = request.SessionId;
+            var MessageRole = request.MessageRole;
+            var Content = request.Content;
+            var Score = request.Score;
+            var ToolName = request.ToolName;
+
+            if (request.SessionId == 0)
             {
-                int newSessionId = _service.InsertMyOneChatSession("New Chat Session");
-                if (newSessionId != -1)
+                Session? newSession = _service.InsertMyOneChatSession("New Chat Session");
+                if (newSession != null)
                 {
-                    sessionId = newSessionId;
+                    SessionId = newSession.Id;
                 }
                 else
                 {
                     _logger.LogError("チャットセッション生成エラー。");
-                    return Ok("追加失敗");
+                    return Ok(null);
                 }
             }
-            if (_service.InsertMyOneChat(sessionId, role, content, score, toolName) == 1)
+            Chat? response = _service.InsertMyOneChat(SessionId, MessageRole, Content, Score, ToolName);
+            if (response != null)
             {
-                return Ok("追加成功");
+                _logger.LogInformation("チャット追加成功。");
+                var llmResponse = await _llmService.ChatAsync(Content);
+                Console.WriteLine(JsonSerializer.Serialize(
+    llmResponse,
+    new JsonSerializerOptions
+    {
+        WriteIndented = true,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    }));
+                return Ok(response);
             }
-            else
-            {
-                return Ok("追加失敗");
-            }
+            _logger.LogError("チャット追加失敗。");
+            return Ok(false);
         }
     }
 }

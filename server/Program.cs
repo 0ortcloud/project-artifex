@@ -1,3 +1,5 @@
+using Artifex.Services;
+
 namespace Artifex
 {
     class MainClass
@@ -12,9 +14,15 @@ namespace Artifex
             builder.Services.AddControllers();
 
             // Service 등록
-            builder.Services.AddScoped<Services.ChatService>();
+            builder.Services.AddScoped<ChatService>();
             // builder.Services.AddScoped<LoreService>();
             // builder.Services.AddScoped<MetaService>();
+
+            builder.Services.AddHttpClient<LLMService>(client =>
+                {
+                    client.BaseAddress = new Uri("http://127.0.0.1:11434");
+                }
+            );
 
             var app = builder.Build();
 

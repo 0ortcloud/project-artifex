@@ -18,6 +18,7 @@ namespace Artifex
                 (
                     Id INTEGER PRIMARY KEY AUTOINCREMENT,
                     Title TEXT NOT NULL,
+                    Condensation TEXT NOT NULL,
                     CreatedAt INTEGER NOT NULL,
                     UpdatedAt INTEGER NOT NULL
                 );
