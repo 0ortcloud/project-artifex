@@ -4,6 +4,7 @@ using Artifex.Request;
 using Artifex.Models;
 using System.Text.Json;
 using System.Text.Encodings.Web;
+using System.Text;
 
 namespace Artifex.Controllers
 {
@@ -75,7 +76,7 @@ namespace Artifex.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> InsertOneChat([FromBody] InsertOneChatRequest request)
+        public async Task InsertOneChat([FromBody] InsertOneChatRequest request)
         {
             var SessionId = request.SessionId;
             var MessageRole = request.MessageRole;
@@ -83,6 +84,7 @@ namespace Artifex.Controllers
             var Score = request.Score;
             var ToolName = request.ToolName;
 
+            // 1. セッションが存在しない場合、新規作成
             if (request.SessionId == 0)
             {
                 Session? newSession = _service.InsertMyOneChatSession("New Chat Session");
@@ -93,25 +95,59 @@ namespace Artifex.Controllers
                 else
                 {
                     _logger.LogError("チャットセッション生成エラー。");
-                    return Ok(null);
+                    Response.StatusCode = 500;
+                    return;
                 }
             }
+
+            // 2. ユーザーのメッセージをDBに保存
             Chat? response = _service.InsertMyOneChat(SessionId, MessageRole, Content, Score, ToolName);
-            if (response != null)
+            if (response == null)
             {
-                _logger.LogInformation("チャット追加成功。");
-                var llmResponse = await _llmService.ChatAsync(Content);
-                Console.WriteLine(JsonSerializer.Serialize(
-    llmResponse,
-    new JsonSerializerOptions
-    {
-        WriteIndented = true,
-        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-    }));
-                return Ok(response);
+                _logger.LogError("チャット追加失敗。");
+                Response.StatusCode = 400;
+                return;
             }
-            _logger.LogError("チャット追加失敗。");
-            return Ok(false);
+
+            _logger.LogInformation("チャット追加成功。");
+
+            // 3. HTTPレスポンスをストリーミング（SSE）用に設定
+            Response.ContentType = "text/event-stream";
+            Response.Headers.Append("Cache-Control", "no-cache");
+            Response.Headers.Append("Connection", "keep-alive");
+
+            var fullAnswerBuilder = new StringBuilder();
+
+            try
+            {
+                // 4. 新規セッションIDの確定情報を最初に送信
+                var metaData = JsonSerializer.Serialize(new { SessionId, UserChat = response });
+                await Response.WriteAsync($"data: {metaData}\n\n");
+                await Response.Body.FlushAsync();
+
+                // 5. LLMからストリーミングデータを取得してフロントエンドへ転送
+                await foreach (var textChunk in _llmService.ChatAsync(SessionId, Content))
+                {
+                    fullAnswerBuilder.Append(textChunk);
+
+                    // クライアントへメッセージの断片を送信
+                    var chunkData = JsonSerializer.Serialize(new { AnswerChunk = textChunk });
+                    await Response.WriteAsync($"data: {chunkData}\n\n");
+                    await Response.Body.FlushAsync(); // 即時伝送
+                }
+
+                // 6. ストリーミング完了後、完成したAIの回答を最終的にDBへ保存
+                string aiAnswer = fullAnswerBuilder.ToString();
+                long UnixTime = DateTimeOffset.UtcNow.ToUnixTimeSeconds(); // 完了時点の時間を取得
+
+                _service.InsertMyOneChat(SessionId, 2, aiAnswer, 0, 0);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ストリーミング処理中にエラーが発生しました。");
+                // クライアントにエラーを通知
+                await Response.WriteAsync($"data: {JsonSerializer.Serialize(new { Error = "AIの応答処理中にエラーが発生しました。" })}\n\n");
+            }
         }
     }
 }

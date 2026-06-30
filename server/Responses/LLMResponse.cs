@@ -38,4 +38,32 @@ namespace Artifex.Response
         [JsonPropertyName("eval_duration")]
         public long EvalDuration { get; set; }
     }
+
+    public class LLMStreamResponse
+    {
+        [JsonPropertyName("model")]
+        public string Model { get; set; } = string.Empty;
+
+        [JsonPropertyName("created_at")]
+        public DateTime CreatedAt { get; set; }
+
+        [JsonPropertyName("message")]
+        public StreamMessage? Message { get; set; }
+
+        [JsonPropertyName("done")]
+        public bool Done { get; set; }
+    }
+
+    /// <summary>
+    /// ストリーミングメッセージの断片を格納するクラス
+    /// </summary>
+    public class StreamMessage
+    {
+        [JsonPropertyName("role")]
+        public string Role { get; set; } = string.Empty;
+
+        // チャンクごとに新しく生成されたテキストの断片が入ります
+        [JsonPropertyName("content")]
+        public string Content { get; set; } = string.Empty;
+    }
 }

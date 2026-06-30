@@ -21,6 +21,7 @@ namespace Artifex
             builder.Services.AddHttpClient<LLMService>(client =>
                 {
                     client.BaseAddress = new Uri("http://127.0.0.1:11434");
+                    client.Timeout = TimeSpan.FromMinutes(5);
                 }
             );
 
