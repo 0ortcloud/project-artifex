@@ -23,9 +23,9 @@ namespace Artifex.Services
             PropertyNameCaseInsensitive = true
         };
 
-        private List<LLMMessage> PreviousOfStory(int id)
+        private List<UserSendMessage> PreviousOfStory(int id)
         {
-            List<LLMMessage> result = [];
+            List<UserSendMessage> result = [];
             using var connection = new SqliteConnection(DatabaseUtilClass.ConnectionString);
             connection.Open();
             var command = connection.CreateCommand();
@@ -77,7 +77,7 @@ namespace Artifex.Services
                     whos = "system";
                 }
 
-                result.Add(new LLMMessage
+                result.Add(new UserSendMessage
                 {
                     Role = whos,
                     Content = reader.GetString(1),
@@ -89,16 +89,16 @@ namespace Artifex.Services
 
         public async IAsyncEnumerable<string> ChatAsync(int sessionId,
         string prompt,
-        CancellationToken cancellationToken = default)
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            List<LLMMessage> story = PreviousOfStory(sessionId);
-            LLMMessage system = new()
+            List<UserSendMessage> story = PreviousOfStory(sessionId);
+            UserSendMessage system = new()
             {
                 Role = "system",
-                // Content = "絵文字は使用しないでください。"
-                Content = "Emoji는 절대 사용하지 마세요. 사용자는 왕이며, 딩신은 그의 신하입니다. 말투는 언제나 하소서체를 써야 합니다. 마치 사극처럼 신하가 왕에게 하는 말을 쓰세요."
+                Content = "絵文字は使用しないでください。"
+                // Content = "Emoji는 절대 사용하지 마세요. 사용자는 왕이며, 딩신은 그의 신하입니다. 말투는 언제나 하소서체를 써야 합니다. 마치 사극처럼 신하가 왕에게 하는 말을 쓰세요."
             };
-            LLMMessage newMessage = new()
+            UserSendMessage newMessage = new()
             {
                 Role = "user",
                 Content = prompt
@@ -131,7 +131,7 @@ namespace Artifex.Services
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var line = await reader.ReadLineAsync();
+                var line = await reader.ReadLineAsync(cancellationToken);
 
                 if (line is null)
                     break;
@@ -139,11 +139,11 @@ namespace Artifex.Services
                 if (string.IsNullOrWhiteSpace(line))
                     continue;
 
-                LLMStreamResponse? chunk;
+                LLMChatResponse? chunk;
 
                 try
                 {
-                    chunk = JsonSerializer.Deserialize<LLMStreamResponse>(line, JsonOptions);
+                    chunk = JsonSerializer.Deserialize<LLMChatResponse>(line, JsonOptions);
                 }
                 catch (JsonException ex)
                 {

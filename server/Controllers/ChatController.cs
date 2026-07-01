@@ -3,7 +3,6 @@ using Artifex.Services;
 using Artifex.Request;
 using Artifex.Models;
 using System.Text.Json;
-using System.Text.Encodings.Web;
 using System.Text;
 
 namespace Artifex.Controllers
